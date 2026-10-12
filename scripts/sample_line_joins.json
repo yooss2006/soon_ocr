@@ -1,0 +1,157 @@
+{
+  "80": [
+    {
+      "line_index": 17,
+      "line_text": "패러다임의 변화는 비교적 자",
+      "next_line_text": "주 출제되는 주제이지만, 2025",
+      "tail": "자",
+      "head": "주"
+    },
+    {
+      "line_index": 19,
+      "line_text": "년 시험에서는 직접적인 문항",
+      "next_line_text": "은 없었습니다. 과거 • 현재 •미",
+      "tail": "문항",
+      "head": "은"
+    },
+    {
+      "line_index": 20,
+      "line_text": "은 없었습니다. 과거 • 현재 •미",
+      "next_line_text": "래 단계에 해당하는 영단어와",
+      "tail": "•미",
+      "head": "래"
+    },
+    {
+      "line_index": 22,
+      "line_text": "각 단계의 의미를 흐름 중심으",
+      "next_line_text": "로 정리해 두시기 바랍니다.",
+      "tail": "중심으",
+      "head": "로"
+    },
+    {
+      "line_index": 30,
+      "line_text": "제품과 서비스의 결합, 서비스의 상",
+      "next_line_text": "품화, 그리고 기존 서비스와 신규 서",
+      "tail": "상",
+      "head": "품화,"
+    },
+    {
+      "line_index": 31,
+      "line_text": "품화, 그리고 기존 서비스와 신규 서",
+      "next_line_text": "비스의 결합 현상을 포괄하는 개념",
+      "tail": "서",
+      "head": "비스의"
+    },
+    {
+      "line_index": 44,
+      "line_text": "• 연결을 더 효과적이",
+      "next_line_text": "고 효율적으로 제공",
+      "tail": "효과적이",
+      "head": "고"
+    },
+    {
+      "line_index": 48,
+      "line_text": "• 복잡한 연결을 얼마",
+      "next_line_text": "나 효과적이고 믿을",
+      "tail": "얼마",
+      "head": "나"
+    }
+  ],
+  "269": [
+    {
+      "line_index": 6,
+      "line_text": "• 투약 전후나 이벤트 성과 비교와 같이 짝을 이루는 각 쌍에 대한 표본을 대상으로 모",
+      "next_line_text": "평균의 차이 A1-W2에 대한 추정에는 대응 표본(Pairwise Sample)을 사용한다.",
+      "tail": "모",
+      "head": "평균의"
+    },
+    {
+      "line_index": 27,
+      "line_text": "• 대응표본의 특징은 모집단과 표본은 하나씩이지만, 각 개체들에 대해 두 개",
+      "next_line_text": "씩의 관측값이 존재하므로 모수는 두 개이고, 표본 내에 있는 각 개체별로",
+      "tail": "개",
+      "head": "씩의"
+    },
+    {
+      "line_index": 60,
+      "line_text": "짝을 이루고 있는 개체마다 차이",
+      "next_line_text": "를 계산한 후 이를 하나의 표본",
+      "tail": "차이",
+      "head": "를"
+    },
+    {
+      "line_index": 61,
+      "line_text": "를 계산한 후 이를 하나의 표본",
+      "next_line_text": "으로 보고 추정하는 것과 동일합",
+      "tail": "표본",
+      "head": "으로"
+    },
+    {
+      "line_index": 62,
+      "line_text": "으로 보고 추정하는 것과 동일합",
+      "next_line_text": "니다.",
+      "tail": "동일합",
+      "head": "니다."
+    },
+    {
+      "line_index": 65,
+      "line_text": "신뢰구간은 모수가 포함될 구간",
+      "next_line_text": "을 의미하며, 95% 신뢰구간은 모",
+      "tail": "구간",
+      "head": "을"
+    },
+    {
+      "line_index": 66,
+      "line_text": "을 의미하며, 95% 신뢰구간은 모",
+      "next_line_text": "수가 100개의 구간 중 95개의 구",
+      "tail": "모",
+      "head": "수가"
+    },
+    {
+      "line_index": 67,
+      "line_text": "수가 100개의 구간 중 95개의 구",
+      "next_line_text": "간에 있을 확률을 나타냅니다.",
+      "tail": "구",
+      "head": "간에"
+    }
+  ],
+  "280": [
+    {
+      "line_index": 10,
+      "line_text": "• 랜덤화가 가장 어려운 것을 1차 단위로, 비교적 쉬운 것을 후(1*) 단위로 배",
+      "next_line_text": "치한다.",
+      "tail": "배",
+      "head": "치한다."
+    },
+    {
+      "line_index": 29,
+      "line_text": "실험계획법은 실험을 체계적으로 설계하여 효율적으로 데이터를 수집하고 분석함으로써 최적의 결과를 도출",
+      "next_line_text": "하는 통계적 방법이다. 다른 선택지들은 데이터 분석, 상관관계 분석, 시각화 등 다른 개념을 설명하고 있다.",
+      "tail": "도출",
+      "head": "하는"
+    }
+  ],
+  "400": [
+    {
+      "line_index": 57,
+      "line_text": "로지스틱 회귀분석을 실시한 결과 age와 grade는 유의수준 5%하에서 유",
+      "next_line_text": "의하지 않아 이를 제외한 3개 변수 stage, xray와 acid 를 활용해서 모형을",
+      "tail": "유",
+      "head": "의하지"
+    },
+    {
+      "line_index": 60,
+      "line_text": "• stage, xray와 acid의 추정계수는 유의수준 5% 하에서 유의하게 나타나므",
+      "next_line_text": "로 p(r=1)=1/(1+e-(-3.05+1.65stage+1.91xray+1.64acid)의 선형식이 가",
+      "tail": "나타나므",
+      "head": "로"
+    },
+    {
+      "line_index": 61,
+      "line_text": "로 p(r=1)=1/(1+e-(-3.05+1.65stage+1.91xray+1.64acid)의 선형식이 가",
+      "next_line_text": "능하다.",
+      "tail": "가",
+      "head": "능하다."
+    }
+  ]
+}

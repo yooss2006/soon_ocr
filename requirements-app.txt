@@ -1,0 +1,9 @@
+pypdf==6.10.0
+reportlab==4.4.9
+Pillow==12.3.0
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+onnxruntime==1.30.0
+tokenizers==0.23.2
+kiwipiepy==0.23.1
+pyinstaller==6.22.3
