@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import CoreText
 import UniformTypeIdentifiers
 
 struct SavedJob: Identifiable {
@@ -262,54 +263,98 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// Apple-inspired surfaces. All authored spacing uses a 4-point grid.
+private enum OCRDesign {
+    static let smallGap: CGFloat = 4
+    static let itemGap: CGFloat = 12
+    static let cardPadding: CGFloat = 16
+    static let sectionGap: CGFloat = 24
+    static let cardRadius: CGFloat = 16
+    static let accent = Color(red: 0, green: 102.0 / 255, blue: 204.0 / 255)
+    static let ink = Color(red: 29.0 / 255, green: 29.0 / 255, blue: 31.0 / 255)
+    static let canvas = Color(red: 245.0 / 255, green: 245.0 / 255, blue: 247.0 / 255)
+    static let surface = Color.white
+    static let hairline = Color(red: 224.0 / 255, green: 224.0 / 255, blue: 224.0 / 255)
+
+    static let largeTitle = font("Bold", style: .largeTitle)
+    static let headline = font("SemiBold", style: .headline)
+    static let body = font("Regular", style: .body)
+    static let bodyMedium = font("Medium", style: .body)
+    static let callout = font("Regular", style: .callout)
+    static let calloutMedium = font("Medium", style: .callout)
+    static let caption = font("Regular", style: .caption1)
+
+    private static func font(_ weight: String, style: NSFont.TextStyle) -> Font {
+        .custom("Pretendard-" + weight, size: NSFont.preferredFont(forTextStyle: style).pointSize)
+    }
+
+    static func registerFonts() {
+        guard let directory = Bundle.main.resourceURL?.appendingPathComponent("Fonts"),
+              let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return }
+        for file in files where file.pathExtension == "otf" {
+            CTFontManagerRegisterFontsForURL(file as CFURL, .process, nil)
+        }
+    }
+}
+
+private struct OCRCardStyle: GroupBoxStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(OCRDesign.cardPadding)
+            .background(OCRDesign.surface, in: RoundedRectangle(cornerRadius: OCRDesign.cardRadius))
+            .overlay(RoundedRectangle(cornerRadius: OCRDesign.cardRadius).strokeBorder(OCRDesign.hairline, lineWidth: 1))
+    }
+}
+
 struct ContentView: View {
     @ObservedObject var model: OCRModel
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 12) {
-                    Image(systemName: "doc.text.viewfinder").font(.system(size: 36)).foregroundStyle(.blue)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("OCR 도우미").font(.largeTitle.bold())
+        HStack(alignment: .top, spacing: OCRDesign.sectionGap) {
+            VStack(alignment: .leading, spacing: OCRDesign.sectionGap) {
+                HStack(spacing: OCRDesign.itemGap) {
+                    Image(systemName: "doc.text.viewfinder").font(.system(size: 36)).foregroundStyle(OCRDesign.accent)
+                    VStack(alignment: .leading, spacing: OCRDesign.smallGap) {
+                        Text("OCR 도우미").font(OCRDesign.largeTitle)
                         Text("원본 모습을 유지한 검색 가능한 PDF").foregroundStyle(.secondary)
                     }
                 }
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("1. 파일 선택").font(.headline)
+                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                        HStack(spacing: OCRDesign.itemGap) {
+                            Text("1. 파일 선택").font(OCRDesign.headline)
                             Spacer()
                             Button("PDF 선택…", action: model.chooseInput).disabled(model.running)
                         }
-                        Text(model.source?.lastPathComponent ?? "선택한 파일 없음").font(.body.weight(.medium)).lineLimit(2)
-                        if model.pageCount > 0 { Text("전체 \(model.pageCount)쪽").font(.caption).foregroundStyle(.secondary) }
+                        Text(model.source?.lastPathComponent ?? "선택한 파일 없음").font(OCRDesign.bodyMedium).lineLimit(2)
+                        if model.pageCount > 0 { Text("전체 \(model.pageCount)쪽").font(OCRDesign.caption).foregroundStyle(.secondary) }
                         Divider()
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("저장 위치").font(.caption).foregroundStyle(.secondary)
-                                Text(model.destination?.path ?? "파일을 선택하면 자동으로 정합니다.").lineLimit(2).truncationMode(.middle).font(.caption)
+                        HStack(spacing: OCRDesign.itemGap) {
+                            VStack(alignment: .leading, spacing: OCRDesign.smallGap) {
+                                Text("저장 위치").font(OCRDesign.caption).foregroundStyle(.secondary)
+                                Text(model.destination?.path ?? "파일을 선택하면 자동으로 정합니다.").lineLimit(2).truncationMode(.middle).font(OCRDesign.caption)
                             }
                             Spacer()
                             Button("변경…", action: model.chooseDestination).disabled(model.running || model.source == nil)
                         }
-                    }.padding(8)
+                    }
                 }
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("2. 샘플 확인").font(.headline)
+                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                        Text("2. 샘플 확인").font(OCRDesign.headline)
                         Text("대표 페이지 최대 5쪽을 먼저 변환합니다.").foregroundStyle(.secondary)
-                        HStack {
+                        HStack(spacing: OCRDesign.itemGap) {
                             Button(model.status == "paused" && model.scope == "sample" ? "샘플 이어하기" : "샘플 변환") { model.start("sample") }
                                 .disabled(model.running || model.source == nil)
                             Button("샘플 PDF 열기") { model.open(model.sample) }.disabled(model.sample == nil)
                         }
                         Toggle("샘플을 확인했습니다", isOn: $model.approved).disabled(!model.sampleReady || model.running)
-                    }.padding(8)
+                    }
                 }
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("3. 전체 변환").font(.headline)
-                        HStack {
+                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                        Text("3. 전체 변환").font(OCRDesign.headline)
+                        HStack(spacing: OCRDesign.itemGap) {
                             Button(model.fullButtonTitle) { model.start("full") }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(model.running || !model.sampleReady || !model.approved)
@@ -321,38 +366,45 @@ struct ContentView: View {
                             if model.target > 0 { ProgressView(value: Double(model.done), total: Double(model.target)) }
                             else { ProgressView().controlSize(.small) }
                         }
-                        Text(model.message).font(.callout).textSelection(.enabled)
-                        if model.target > 0 { Text("\(model.done) / \(model.target)쪽 처리").font(.caption).monospacedDigit().foregroundStyle(.secondary) }
+                        Text(model.message).font(OCRDesign.callout).textSelection(.enabled)
+                        if model.target > 0 { Text("\(model.done) / \(model.target)쪽 처리").font(OCRDesign.caption).monospacedDigit().foregroundStyle(.secondary) }
                         if !model.errorMessage.isEmpty { Text(model.errorMessage).foregroundStyle(.red).textSelection(.enabled) }
-                        HStack {
+                        HStack(spacing: OCRDesign.itemGap) {
                             Button("완성 PDF 열기") { model.open(model.result) }.disabled(model.result == nil)
                             Button("검토 보고서") { model.open(model.report) }.disabled(model.report == nil)
                         }
-                        if model.reviews > 0 { Text("확인 항목 \(model.reviews)개 · 표·수식은 원본과 함께 확인하세요.").font(.caption).foregroundStyle(.secondary) }
-                    }.padding(8)
+                        if model.reviews > 0 { Text("확인 항목 \(model.reviews)개 · 표·수식은 원본과 함께 확인하세요.").font(OCRDesign.caption).foregroundStyle(.secondary) }
+                    }
                 }
                 Text("이 Mac에서 처리합니다. 완료한 페이지는 저장돼 중단 후 이어갈 수 있습니다.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(OCRDesign.caption).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity)
-            VStack(alignment: .leading, spacing: 12) {
-                HStack { Text("최근 작업").font(.headline); Spacer(); Button { model.refreshJobs() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless) }
-                if model.jobs.isEmpty { Text("저장된 작업이 없습니다.").foregroundStyle(.secondary).font(.callout) }
+            VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                HStack(spacing: OCRDesign.itemGap) { Text("최근 작업").font(OCRDesign.headline); Spacer(); Button { model.refreshJobs() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless) }
+                if model.jobs.isEmpty { Text("저장된 작업이 없습니다.").foregroundStyle(.secondary).font(OCRDesign.callout) }
                 ScrollView {
-                    VStack(spacing: 10) {
+                    VStack(spacing: OCRDesign.itemGap) {
                         ForEach(model.jobs.prefix(12)) { saved in
                             Button { model.load(saved) } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text(saved.name).font(.callout.weight(.medium)).lineLimit(2)
-                                    Text("\(saved.processed) / \(saved.count)쪽 기록").font(.caption).foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: OCRDesign.smallGap) {
+                                    Text(saved.name).font(OCRDesign.calloutMedium).lineLimit(2)
+                                    Text("\(saved.processed) / \(saved.count)쪽 기록").font(OCRDesign.caption).foregroundStyle(.secondary)
                                     Text(saved.status.hasPrefix("complete") ? "완료" : (saved.status == "sample_ready" ? "샘플 준비됨" : "불러와서 이어하기"))
-                                        .font(.caption).foregroundStyle(.blue)
-                                }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-                            }.buttonStyle(.plain).background(.quaternary.opacity(0.5),in:RoundedRectangle(cornerRadius:10)).disabled(model.running)
+                                        .font(OCRDesign.caption).foregroundStyle(OCRDesign.accent)
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(OCRDesign.itemGap)
+                            }.buttonStyle(.plain).background(OCRDesign.surface, in: RoundedRectangle(cornerRadius: OCRDesign.cardRadius))
+                                .overlay(RoundedRectangle(cornerRadius: OCRDesign.cardRadius).strokeBorder(OCRDesign.hairline, lineWidth: 1)).disabled(model.running)
                         }
                     }
                 }
-            }.frame(width: 210)
-        }.padding(24).frame(minWidth: 850, minHeight: 710)
+            }.frame(width: 224)
+        }.padding(OCRDesign.sectionGap).frame(minWidth: 864, minHeight: 712)
+        .background(OCRDesign.canvas)
+        .foregroundStyle(OCRDesign.ink)
+        .font(OCRDesign.body)
+        .tint(OCRDesign.accent)
+        .groupBoxStyle(OCRCardStyle())
+        .preferredColorScheme(.light)
         .onAppear { AppDelegate.model = model }
         .onOpenURL { model.select($0) }
     }
@@ -362,9 +414,13 @@ struct ContentView: View {
 struct OCRApplication: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @StateObject private var model = OCRModel()
+    init() {
+        OCRDesign.registerFonts()
+    }
+
     var body: some Scene {
         WindowGroup { ContentView(model: model) }
-            .defaultSize(width: 900, height: 780)
+            .defaultSize(width: 900, height: 784)
             .commands {
                 CommandGroup(replacing: .newItem) { Button("PDF 열기…", action: model.chooseInput).keyboardShortcut("o") }
             }

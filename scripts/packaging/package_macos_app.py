@@ -22,6 +22,7 @@ if app.exists():
 contents=app/'Contents';macos=contents/'MacOS';resources=contents/'Resources'
 macos.mkdir(parents=True);resources.mkdir()
 shutil.copy2(build/'OCRHelper',macos/'OCRHelper')
+shutil.copytree(root/'mac_app/Fonts',resources/'Fonts')
 shutil.copytree(build/'frozen/ocr-worker',resources/'engine',symlinks=True)
 shutil.copytree(build/'native',resources/'native')
 (resources/'models/pix2text-mfr-1.5').mkdir(parents=True)
