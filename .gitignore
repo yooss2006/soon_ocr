@@ -1,6 +1,9 @@
 # OCR outputs
 /output/
 
+# Local processing records, caches and test artifacts
+/artifacts/
+
 # Build outputs and packaged macOS apps
 /build/
 /dist/

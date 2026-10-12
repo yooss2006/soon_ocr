@@ -10,7 +10,7 @@ from pathlib import Path
 
 if not getattr(sys,'frozen',False):
     root=Path(__file__).resolve().parents[1]
-    sys.path.insert(0,str(root));sys.path.insert(0,str(root/'scripts'))
+    sys.path.insert(0,str(root));sys.path.insert(0,str(root/'scripts/runtime'))
 from ocr_app.engine import Converter,default_job_root
 from ocr_app.resources import Resources
 from ocr_app.storage import UserError,Paused

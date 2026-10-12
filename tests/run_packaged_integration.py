@@ -17,7 +17,7 @@ def run(name,args):
  return events
 
 start=time.monotonic()
-events=run('final-pause',['--input',source,'--job-root',root/'build/final-app-jobs','--stop-after','1'])
+events=run('final-pause',['--input',source,'--job-root',root/'artifacts/jobs/final-app-jobs','--stop-after','1'])
 assert events[-1]['status']=='paused'
 job=Path(events[-1]['job_dir']);first=job/'pages/00001/overlay.pdf';first_stamp=first.stat().st_mtime_ns
 sample=run('final-sample',['--job',job,'--scope','sample'])

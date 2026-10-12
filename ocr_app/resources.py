@@ -20,7 +20,7 @@ class Resources:
             self.document = self.root/'build/native/vision_document'
             self.poppler = Path(shutil.which('pdftoppm') or '/nonexistent/pdftoppm')
             paths = sorted((self.root/'ocr_app').glob('*.py'))
-            paths += [self.root/'scripts'/name for name in ['automatic_wraps.py','detect_regions.py','quality_reviews.py','formula_crop.py','formula_onnx.py']]
+            paths += [self.root/'scripts/runtime'/name for name in ['automatic_wraps.py','detect_regions.py','quality_reviews.py','formula_crop.py','formula_onnx.py']]
             self.recipe = json.dumps({str(p.relative_to(self.root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths},sort_keys=True).encode()
         self.fingerprint = hashlib.sha256(self.recipe+b'|dpi300|math400|review-v1').hexdigest()
 

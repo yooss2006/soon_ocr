@@ -167,7 +167,7 @@ def main():
     parser.add_argument('--pages',type=int,nargs='+',default=[80,269,280,400])
     parser.add_argument('--size',type=int,default=1536)
     args=parser.parse_args()
-    root=Path(__file__).resolve().parent.parent
+    root=Path(__file__).resolve().parents[2]
     options=ort.SessionOptions(); options.intra_op_num_threads=4
     session=ort.InferenceSession(str(root/'models/pix2text-mfd-1.5.onnx'),sess_options=options,providers=['CPUExecutionProvider'])
     output=root/'tmp/pdfs/auto';output.mkdir(exist_ok=True)

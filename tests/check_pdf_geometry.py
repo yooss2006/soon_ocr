@@ -6,7 +6,7 @@ from pypdf import PdfReader,PdfWriter
 from pypdf.generic import RectangleObject
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from ocr_app.pdf_layer import display_geometry,create_overlay,export_pdf
-root=Path(__file__).resolve().parents[1];out=root/'build/tests/geometry';out.mkdir(parents=True,exist_ok=True)
+root=Path(__file__).resolve().parents[1];out=root/'artifacts/tests/regression/geometry';out.mkdir(parents=True,exist_ok=True)
 image=Image.new('RGB',(600,800),'white');d=ImageDraw.Draw(image)
 for x in range(0,600,50):d.line((x,0,x,800),fill=(220,225,235),width=2)
 for y in range(0,800,50):d.line((0,y,600,y),fill=(220,225,235),width=2)

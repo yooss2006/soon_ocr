@@ -11,7 +11,7 @@ from pypdf import PdfReader,PdfWriter
 from pypdf.generic import RectangleObject
 from reportlab.pdfgen import canvas
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts/runtime'))
 from ocr_app.engine import Converter
 from ocr_app.pdf_layer import display_geometry,create_overlay,export_pdf
 from ocr_app.storage import UserError,job_lock
