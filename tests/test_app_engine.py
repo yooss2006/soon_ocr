@@ -77,10 +77,20 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(UserError):self.converter.convert(self.job,'full',output,approved=True)
         self.assertEqual(output.read_bytes(),b'keep me')
 
-    def test_full_requires_sample_and_approval(self):
-        with self.assertRaises(UserError):self.converter.convert(self.job,'full',self.root/'result.pdf',approved=True)
+    def test_full_runs_without_sample_or_approval(self):
+        result=self.converter.convert(self.job,'full',self.root/'direct.pdf')
+        self.assertEqual(result['status'],'complete')
+        self.assertEqual(len(PdfReader(result['path']).pages),3)
+        self.assertEqual(FakeAnalyzer.calls,[1,2,3])
+        state=json.loads((self.job/'job.json').read_text())
+        self.assertFalse(state['sample_ready'])
+        self.assertFalse(state['sample_approved'])
+
+    def test_optional_sample_reused_without_approval(self):
         self.converter.convert(self.job)
-        with self.assertRaises(UserError):self.converter.convert(self.job,'full',self.root/'result.pdf')
+        result=self.converter.convert(self.job,'full',self.root/'after-sample.pdf')
+        self.assertEqual(result['status'],'complete')
+        self.assertEqual(FakeAnalyzer.calls,[1,2,3])
 
     def test_snapshot_change_rejected(self):
         with (self.job/'source.pdf').open('ab') as f:f.write(b'changed')

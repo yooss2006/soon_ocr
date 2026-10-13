@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 class UserError(Exception): pass
+class NeedsOCR(UserError): pass
 class Paused(Exception): pass
 
 def sha256_file(path):

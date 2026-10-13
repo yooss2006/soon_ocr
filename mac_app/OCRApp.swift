@@ -12,33 +12,38 @@ struct SavedJob: Identifiable {
     let scope: String
     let count: Int
     let processed: Int
-    let sampleReady: Bool
-    let approved: Bool
     let sample: URL?
     let output: URL?
     let report: URL?
     let updated: Double
 }
 
+enum WorkflowStep { case input, checking, sample, review, full, ai, finished, checkFailed }
+
 @MainActor
 final class OCRModel: ObservableObject {
+    @Published var step: WorkflowStep = .input
     @Published var source: URL?
     @Published var destination: URL?
     @Published var job: URL?
     @Published var sample: URL?
     @Published var result: URL?
+    @Published var aiResult: URL?
+    @Published var splitAI = false
+    @Published var aiFormat = "package"
+    @Published var aiReady = false
+    @Published var aiMessage = "OCR 완료 후 저장할 수 있습니다."
+    var activeScope = "sample"
     @Published var report: URL?
     @Published var jobs: [SavedJob] = []
     @Published var running = false
     @Published var stopping = false
-    @Published var sampleReady = false
-    @Published var approved = false
     @Published var done = 0
     @Published var target = 0
     @Published var pageCount = 0
     @Published var status = "ready"
     @Published var scope = "sample"
-    @Published var message = "PDF를 선택해 샘플부터 확인하세요."
+    @Published var message = "PDF를 첨부하세요. 텍스트 상태를 확인해 다음 단계를 안내합니다."
     @Published var errorMessage = ""
     @Published var reviews = 0
     @Published var failed = 0
@@ -83,11 +88,13 @@ final class OCRModel: ObservableObject {
             suffix += 1
         }
         destination = candidate
-        job = nil; sample = nil; result = nil; report = nil
-        sampleReady = false; approved = false; overwriteAllowed = false
+        job = nil; sample = nil; result = nil; report = nil; aiResult = nil
+        overwriteAllowed = false
         pageCount = 0; done = 0; target = 0; reviews = 0; failed = 0
         status = "ready"; scope = "sample"; errorMessage = ""
-        message = "먼저 대표 페이지의 샘플을 변환하세요."
+        splitAI = false; aiFormat = "package"
+        message = "PDF의 텍스트 상태를 확인합니다."
+        start("ai-check")
     }
 
     func chooseDestination() {
@@ -123,8 +130,6 @@ final class OCRModel: ObservableObject {
             return SavedJob(id: id, directory: dir, name: name, source: URL(fileURLWithPath: sourcePath),
                 status: value["status"] as? String ?? "ready", scope: value["scope"] as? String ?? "sample",
                 count: value["page_count"] as? Int ?? 0, processed: count,
-                sampleReady: value["sample_ready"] as? Bool ?? false,
-                approved: value["sample_approved"] as? Bool ?? false,
                 sample: url(value["sample_path"] as? String), output: url(export?["path"] as? String ?? value["destination"] as? String),
                 report: url(value["report_path"] as? String), updated: value["updated_at"] as? Double ?? 0)
         }.sorted { $0.updated > $1.updated }
@@ -132,36 +137,78 @@ final class OCRModel: ObservableObject {
 
     func load(_ saved: SavedJob) {
         guard !running else { return }
+        aiResult = nil
         source = saved.source; job = saved.directory
         destination = saved.output ?? saved.source.deletingPathExtension().appendingPathExtension("ocr.pdf")
         sample = saved.sample; result = saved.status.hasPrefix("complete") ? saved.output : nil; report = saved.report
-        sampleReady = saved.sampleReady; approved = saved.approved
         status = saved.status; scope = saved.scope; pageCount = saved.count
         done = saved.processed; target = saved.count; overwriteAllowed = false; errorMessage = ""
         message = "저장된 작업을 불러왔습니다. 완료한 페이지는 다시 처리하지 않습니다."
+        start("ai-check")
     }
 
-    func start(_ requestedScope: String) {
+    func chooseAIOutput() {
+        guard !running, aiReady, let source else { return }
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.directoryURL = source.deletingLastPathComponent()
+        let base = source.deletingPathExtension().lastPathComponent + "_AI"
+        if splitAI || aiFormat == "package" {
+            panel.nameFieldStringValue = base
+            panel.message = "본문과 원본 자료를 담을 새 폴더 이름을 지정하세요."
+        } else {
+            panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+            panel.nameFieldStringValue = base + ".md"
+            panel.message = "AI에 전달할 Markdown 파일을 저장합니다."
+        }
+        if panel.runModal() == .OK, let url = panel.url {
+            if (splitAI || aiFormat == "package") && FileManager.default.fileExists(atPath: url.path) {
+                errorMessage = "새 폴더 이름을 지정하세요."
+                return
+            }
+            start("ai", aiOutput: url)
+        }
+    }
+
+    func start(_ requestedScope: String, aiOutput: URL? = nil) {
         guard !running, source != nil else { return }
-        guard requestedScope != "full" || (sampleReady && approved && destination != nil) else { return }
+        guard requestedScope != "full" || destination != nil else { return }
+        guard requestedScope != "ai" || aiReady else { return }
+        if requestedScope != "ai" {
+            aiReady = false
+            aiMessage = requestedScope == "ai-check" ? "OCR 완료 여부를 확인하고 있습니다…" : "OCR 완료 후 저장할 수 있습니다."
+        }
+        if requestedScope == "ai-check" { step = .checking }
+        else if requestedScope == "sample" {
+            step = .sample; sample = nil
+        } else if requestedScope == "full" { step = .full }
+        else if requestedScope == "ai" { step = .ai }
+        activeScope = requestedScope
         guard let resources = Bundle.main.resourceURL else { return }
         let worker = resources.appendingPathComponent("engine/ocr-worker")
         guard FileManager.default.isExecutableFile(atPath: worker.path) else {
+            if requestedScope == "ai-check" { step = .checkFailed }
             errorMessage = "앱의 실행 파일이 없습니다. 완성된 앱을 다시 사용하세요."
             return
         }
         var args = ["--scope", requestedScope, "--job-root", jobRoot.path, "--parent-pid", String(ProcessInfo.processInfo.processIdentifier)]
         if let job { args += ["--job", job.path] } else if let source { args += ["--input", source.path] }
         if requestedScope == "full", let destination {
-            args += ["--output", destination.path, "--sample-approved"]
+            args += ["--output", destination.path]
             if overwriteAllowed { args += ["--overwrite"] }
             if status == "complete_with_errors" { args += ["--retry-failed"] }
+        }
+        if requestedScope == "ai", let aiOutput {
+            args += ["--output", aiOutput.path, "--split-pages", splitAI ? "50" : "0", "--ai-format", aiFormat]
+            if !splitAI && aiFormat == "markdown" && FileManager.default.fileExists(atPath: aiOutput.path) { args += ["--overwrite"] }
+            aiResult = nil
         }
         let task = Process(); task.executableURL = worker; task.arguments = args
         let stdout = Pipe(), stderr = Pipe()
         task.standardOutput = stdout; task.standardError = stderr
         running = true; stopping = false; receivedFinal = false
-        scope = requestedScope; errorMessage = ""; done = 0; target = 0
+        if requestedScope == "sample" || requestedScope == "full" { scope = requestedScope }
+        errorMessage = ""; done = 0; target = 0
         message = "작업을 준비하고 있습니다."
         process = task
         let readers = DispatchGroup()
@@ -193,17 +240,22 @@ final class OCRModel: ObservableObject {
                 guard let self else { return }
                 self.running = false; self.stopping = false; self.process = nil
                 if !self.receivedFinal {
+                    if requestedScope == "ai-check" { self.step = .checkFailed }
                     self.status = "error"
                     self.errorMessage = "처리가 중단됐습니다. 작업을 다시 불러오면 완료한 페이지부터 이어갈 수 있습니다. (종료 코드 \(process.terminationStatus))"
                 }
                 self.refreshJobs()
                 if self.quitting { NSApp.reply(toApplicationShouldTerminate: true) }
+                else if requestedScope == "full" && self.status.hasPrefix("complete") && self.receivedFinal {
+                    self.start("ai-check")
+                }
                 }
             }
         }
         do { try task.run() }
         catch {
             stdout.fileHandleForWriting.closeFile(); stderr.fileHandleForWriting.closeFile()
+            if requestedScope == "ai-check" { step = .checkFailed }
             running = false; process = nil; errorMessage = "실행하지 못했습니다: \(error.localizedDescription)"
         }
     }
@@ -218,12 +270,34 @@ final class OCRModel: ObservableObject {
             pageCount = event["page_count"] as? Int ?? pageCount
         case "finished":
             receivedFinal = true
+            if event["status"] as? String == "ai_ready" {
+                aiReady = true; step = .ai
+                aiMessage = "OCR 확인 완료. AI용으로 저장할 수 있습니다."
+                pageCount = event["page_count"] as? Int ?? pageCount
+                return
+            }
+            if event["status"] as? String == "ocr_required" {
+                aiReady = false
+                step = scope == "full" ? .full : (status == "sample_ready" && sample != nil ? .review : .sample)
+                message = step == .sample ? "샘플을 테스트하거나 전체 OCR을 바로 시작하세요." : "저장된 작업을 이어서 진행하세요."
+                return
+            }
+            if event["status"] as? String == "ai_complete" {
+                step = .finished
+                if let path = event["path"] as? String { aiResult = URL(fileURLWithPath: path) }
+                return
+            }
+            if event["status"] as? String == "ai_paused" {
+                if activeScope == "ai-check" { step = .checkFailed }
+                aiMessage = "확인 또는 저장을 중단했습니다. PDF나 최근 작업을 다시 선택하세요."
+                return
+            }
             status = event["status"] as? String ?? "error"
             reviews = event["review_count"] as? Int ?? reviews
             failed = (event["failed_pages"] as? [Int])?.count ?? 0
             if let path = event["report_path"] as? String { report = URL(fileURLWithPath: path) }
             if status == "sample_ready" {
-                sampleReady = true
+                step = .review
                 if let path = event["path"] as? String { sample = URL(fileURLWithPath: path) }
                 message = "샘플을 열어 검색과 원본 모습을 확인하세요."
             } else if status.hasPrefix("complete") {
@@ -231,6 +305,12 @@ final class OCRModel: ObservableObject {
                 message = failed == 0 ? "PDF 저장을 완료했습니다." : "PDF를 저장했습니다. 미처리 \(failed)쪽은 원본으로 포함했습니다."
             } else if status == "paused" { message = "중단했습니다. 완료한 페이지는 저장돼 있습니다." }
         case "error":
+            if activeScope == "ai-check" || activeScope == "ai" {
+                receivedFinal = true
+                if activeScope == "ai-check" { aiReady = false; step = .checkFailed }
+                aiMessage = event["message"] as? String ?? "OCR 완료 여부를 확인하지 못했습니다."
+                return
+            }
             receivedFinal = true; status = "error"
             errorMessage = event["message"] as? String ?? "처리 중 문제가 발생했습니다."
         default: break
@@ -241,6 +321,14 @@ final class OCRModel: ObservableObject {
         guard running, let process, process.isRunning else { return }
         stopping = true; message = "안전하게 중단하는 중입니다. 완료한 페이지는 유지됩니다."
         process.terminate()
+    }
+
+    func openSample() {
+        guard let sample, FileManager.default.fileExists(atPath: sample.path) else {
+            errorMessage = "샘플 파일을 찾을 수 없습니다. 샘플을 다시 테스트하세요."
+            return
+        }
+        NSWorkspace.shared.open(sample)
     }
 
     func open(_ url: URL?) { if let url { NSWorkspace.shared.open(url) } }
@@ -311,6 +399,7 @@ struct ContentView: View {
     @ObservedObject var model: OCRModel
     var body: some View {
         HStack(alignment: .top, spacing: OCRDesign.sectionGap) {
+            ScrollView {
             VStack(alignment: .leading, spacing: OCRDesign.sectionGap) {
                 HStack(spacing: OCRDesign.itemGap) {
                     Image(systemName: "doc.text.viewfinder").font(.system(size: 36)).foregroundStyle(OCRDesign.accent)
@@ -322,63 +411,42 @@ struct ContentView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
                         HStack(spacing: OCRDesign.itemGap) {
-                            Text("1. 파일 선택").font(OCRDesign.headline)
+                            Text(model.source == nil ? "PDF 첨부" : "첨부한 PDF").font(OCRDesign.headline)
                             Spacer()
-                            Button("PDF 선택…", action: model.chooseInput).disabled(model.running)
+                            Button(model.source == nil ? "PDF 첨부…" : "다른 PDF 첨부…", action: model.chooseInput)
+                                .disabled(model.running)
                         }
-                        Text(model.source?.lastPathComponent ?? "선택한 파일 없음").font(OCRDesign.bodyMedium).lineLimit(2)
-                        if model.pageCount > 0 { Text("전체 \(model.pageCount)쪽").font(OCRDesign.caption).foregroundStyle(.secondary) }
-                        Divider()
-                        HStack(spacing: OCRDesign.itemGap) {
-                            VStack(alignment: .leading, spacing: OCRDesign.smallGap) {
-                                Text("저장 위치").font(OCRDesign.caption).foregroundStyle(.secondary)
-                                Text(model.destination?.path ?? "파일을 선택하면 자동으로 정합니다.").lineLimit(2).truncationMode(.middle).font(OCRDesign.caption)
-                            }
-                            Spacer()
-                            Button("변경…", action: model.chooseDestination).disabled(model.running || model.source == nil)
+                        Text(model.source?.lastPathComponent ?? "스캔 PDF 또는 검색 가능한 PDF를 선택하세요.")
+                            .font(OCRDesign.bodyMedium).lineLimit(2)
+                        if model.pageCount > 0 {
+                            Text("전체 \(model.pageCount)쪽").font(OCRDesign.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
-                GroupBox {
-                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
-                        Text("2. 샘플 확인").font(OCRDesign.headline)
-                        Text("대표 페이지 최대 5쪽을 먼저 변환합니다.").foregroundStyle(.secondary)
-                        HStack(spacing: OCRDesign.itemGap) {
-                            Button(model.status == "paused" && model.scope == "sample" ? "샘플 이어하기" : "샘플 변환") { model.start("sample") }
-                                .disabled(model.running || model.source == nil)
-                            Button("샘플 PDF 열기") { model.open(model.sample) }.disabled(model.sample == nil)
-                        }
-                        Toggle("샘플을 확인했습니다", isOn: $model.approved).disabled(!model.sampleReady || model.running)
-                    }
-                }
-                GroupBox {
-                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
-                        Text("3. 전체 변환").font(OCRDesign.headline)
-                        HStack(spacing: OCRDesign.itemGap) {
-                            Button(model.fullButtonTitle) { model.start("full") }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(model.running || !model.sampleReady || !model.approved)
-                            if model.running {
-                                Button(model.stopping ? "중단 중…" : "중단") { model.pause() }.disabled(model.stopping)
+                if model.source != nil {
+                    workflowCard
+                    if model.running || !model.errorMessage.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                                if model.running {
+                                    Text(model.message).font(OCRDesign.callout).textSelection(.enabled)
+                                    if model.target > 0 {
+                                        ProgressView(value: Double(model.done), total: Double(model.target))
+                                        Text("\(model.done) / \(model.target)쪽 처리").font(OCRDesign.caption).monospacedDigit()
+                                    } else { ProgressView().controlSize(.small) }
+                                    Button(model.stopping ? "중단 중…" : "중단", action: model.pause).disabled(model.stopping)
+                                }
+                                if !model.errorMessage.isEmpty {
+                                    Text(model.errorMessage).foregroundStyle(.red).textSelection(.enabled)
+                                }
                             }
                         }
-                        if model.running {
-                            if model.target > 0 { ProgressView(value: Double(model.done), total: Double(model.target)) }
-                            else { ProgressView().controlSize(.small) }
-                        }
-                        Text(model.message).font(OCRDesign.callout).textSelection(.enabled)
-                        if model.target > 0 { Text("\(model.done) / \(model.target)쪽 처리").font(OCRDesign.caption).monospacedDigit().foregroundStyle(.secondary) }
-                        if !model.errorMessage.isEmpty { Text(model.errorMessage).foregroundStyle(.red).textSelection(.enabled) }
-                        HStack(spacing: OCRDesign.itemGap) {
-                            Button("완성 PDF 열기") { model.open(model.result) }.disabled(model.result == nil)
-                            Button("검토 보고서") { model.open(model.report) }.disabled(model.report == nil)
-                        }
-                        if model.reviews > 0 { Text("확인 항목 \(model.reviews)개 · 표·수식은 원본과 함께 확인하세요.").font(OCRDesign.caption).foregroundStyle(.secondary) }
                     }
                 }
                 Text("이 Mac에서 처리합니다. 완료한 페이지는 저장돼 중단 후 이어갈 수 있습니다.")
                     .font(OCRDesign.caption).foregroundStyle(.secondary)
             }.frame(maxWidth: .infinity)
+            }
             VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
                 HStack(spacing: OCRDesign.itemGap) { Text("최근 작업").font(OCRDesign.headline); Spacer(); Button { model.refreshJobs() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.borderless) }
                 if model.jobs.isEmpty { Text("저장된 작업이 없습니다.").foregroundStyle(.secondary).font(OCRDesign.callout) }
@@ -408,6 +476,109 @@ struct ContentView: View {
         .onAppear { AppDelegate.model = model }
         .onOpenURL { model.select($0) }
     }
+
+    private var workflowCard: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                switch model.step {
+                case .input:
+                    EmptyView()
+                case .checking:
+                    Text("PDF 확인 중").font(OCRDesign.headline)
+                    Text("파일의 실제 텍스트를 확인합니다. OCR된 PDF는 AI용 정리 단계로 이동합니다.")
+                        .foregroundStyle(.secondary)
+                case .checkFailed:
+                    Text("PDF 확인을 완료하지 못했습니다").font(OCRDesign.headline)
+                    Text(model.aiMessage).textSelection(.enabled)
+                    Button("다시 확인") { model.start("ai-check") }.disabled(model.running)
+                case .sample:
+                    Text("OCR 진행 방법 선택").font(OCRDesign.headline)
+                    Text("샘플 테스트는 선택 사항입니다. 최대 5쪽을 먼저 확인하거나 전체 OCR을 바로 시작하세요.").foregroundStyle(.secondary)
+                    Button(model.status == "paused" ? "샘플 이어하기" : "샘플 테스트 시작") { model.start("sample") }
+                        .disabled(model.running)
+                    destinationRow
+                    Button("전체 OCR 바로 시작") { model.start("full") }
+                        .buttonStyle(.borderedProminent).disabled(model.running)
+                case .review:
+                    Text("샘플 결과 확인 · 선택 사항").font(OCRDesign.headline)
+                    Text("원본과 샘플을 비교하세요. 글자 검색, 문단, 표와 수식을 확인하세요.").foregroundStyle(.secondary)
+                    HStack(spacing: OCRDesign.itemGap) {
+                        Button("원본 PDF 열기") { model.open(model.source) }
+                        Button("샘플 PDF 열기", action: model.openSample)
+                        Button("샘플 다시 테스트") { model.start("sample") }
+                    }.disabled(model.running)
+                    if model.failed > 0 {
+                        Text("미처리 \(model.failed)쪽이 있습니다. 전체 OCR에서 다시 처리합니다.").foregroundStyle(.red)
+                    }
+                    destinationRow
+                    Button("전체 OCR 시작") { model.start("full") }
+                        .buttonStyle(.borderedProminent).disabled(model.running)
+                    reportButton
+                case .full:
+                    Text("전체 OCR").font(OCRDesign.headline)
+                    Text(model.message).textSelection(.enabled)
+                    destinationRow
+                    if !model.running {
+                        Button(model.fullButtonTitle) { model.start("full") }.buttonStyle(.borderedProminent)
+                    }
+                    if model.failed > 0 { Text("미처리 \(model.failed)쪽을 다시 처리해야 AI용으로 저장할 수 있습니다.").foregroundStyle(.red) }
+                    reportButton
+                case .ai:
+                    Text("AI용 정리 및 저장").font(OCRDesign.headline)
+                    Text("원문을 요약하거나 수정하지 않습니다. 페이지 번호와 본문을 정리하고, 기본 형식에는 구조 정보와 원본 이미지도 담습니다.")
+                        .font(OCRDesign.callout).foregroundStyle(.secondary)
+                    Picker("저장 형식", selection: $model.aiFormat) {
+                        Text("구조 + 원본 이미지 (권장)").tag("package")
+                        Text("텍스트만 (이미지 제외)").tag("markdown")
+                    }.disabled(model.running)
+                    if model.aiFormat == "package" {
+                        Text("구조 분석에는 시간이 걸립니다. 저장 후 AI에 본문과 필요한 JPG를 함께 첨부하세요.")
+                            .font(OCRDesign.caption).foregroundStyle(.secondary)
+                    }
+                    Toggle("50쪽씩 나눠 저장", isOn: $model.splitAI).disabled(model.running)
+                    Text(model.aiMessage).font(OCRDesign.caption).textSelection(.enabled)
+                    Button("AI용 결과 저장…", action: model.chooseAIOutput)
+                        .buttonStyle(.borderedProminent).disabled(model.running || !model.aiReady)
+                    pdfResultButton
+                    reportButton
+                case .finished:
+                    Text("AI용 결과 저장 완료").font(OCRDesign.headline)
+                    Text(model.aiResult?.path ?? "").font(OCRDesign.caption).textSelection(.enabled)
+                    Text("AI에 본문 파일을 첨부하세요. 이미지가 필요하면 저장 폴더의 JPG도 함께 첨부하세요.")
+                        .foregroundStyle(.secondary)
+                    Button("AI용 결과 열기") { model.open(model.aiResult) }.buttonStyle(.borderedProminent)
+                    Button("다른 형식으로 저장") { model.step = .ai }
+                    pdfResultButton
+                    reportButton
+                }
+            }
+        }
+    }
+
+    private var destinationRow: some View {
+        HStack(spacing: OCRDesign.itemGap) {
+            VStack(alignment: .leading, spacing: OCRDesign.smallGap) {
+                Text("OCR PDF 저장 위치").font(OCRDesign.caption).foregroundStyle(.secondary)
+                Text(model.destination?.path ?? "").lineLimit(2).truncationMode(.middle).font(OCRDesign.caption)
+            }
+            Spacer()
+            Button("변경…", action: model.chooseDestination).disabled(model.running)
+        }
+    }
+
+    @ViewBuilder private var reportButton: some View {
+        if model.report != nil {
+            Button("검토 보고서") { model.open(model.report) }
+            if model.reviews > 0 {
+                Text("확인 항목 \(model.reviews)개 · 원본과 비교하세요.").font(OCRDesign.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder private var pdfResultButton: some View {
+        if model.result != nil { Button("완성 PDF 열기") { model.open(model.result) } }
+    }
+
 }
 
 @main

@@ -141,10 +141,8 @@ class Converter:
             snapshot = self.job_dir/'source.pdf'
             if sha256_file(snapshot)!=self.state['source_sha256']: raise UserError('보관된 원본 파일이 변경됐습니다. 원본을 다시 선택하세요.')
             if scope=='full':
-                if not self.state.get('sample_ready'): raise UserError('먼저 샘플 변환을 완료하세요.')
-                if not (approved or self.state.get('sample_approved')): raise UserError('샘플을 확인한 뒤 전체 변환을 시작하세요.')
                 if not output: raise UserError('저장할 PDF 위치를 선택하세요.')
-                self.state['sample_approved'] = True
+                if approved: self.state['sample_approved'] = True
                 destination = Path(output).expanduser().resolve()
                 original = Path(self.state['source_path']).resolve()
                 if destination==original or destination.is_relative_to(self.job_dir): raise UserError('원본 또는 작업 기록을 덮어쓸 수 없습니다. 다른 저장 위치를 선택하세요.')
