@@ -2,6 +2,12 @@
 import hashlib,json,os,plistlib,shutil,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[2]
+poppler_setting=os.environ.get('OCR_POPPLER_DIR')
+if not poppler_setting:
+ raise RuntimeError('Set OCR_POPPLER_DIR to the Poppler directory containing bin/pdftoppm and bin/pdfinfo')
+poppler=Path(poppler_setting).expanduser().resolve()
+if not all((poppler/'bin'/name).is_file() for name in ['pdftoppm','pdfinfo']):
+ raise RuntimeError('OCR_POPPLER_DIR must contain bin/pdftoppm and bin/pdfinfo')
 build=root/'build';build.mkdir(exist_ok=True)
 python=root/'.venv-app/bin/python'
 def run(args,**kwargs):subprocess.run([str(x) for x in args],check=True,**kwargs)
@@ -29,7 +35,6 @@ shutil.copytree(build/'native',resources/'native')
 shutil.copy2(root/'models/pix2text-mfd-1.5.onnx',resources/'models/pix2text-mfd-1.5.onnx')
 for file in (root/'models/pix2text-mfr-1.5').iterdir():
  if file.suffix in ('.json','.onnx'):shutil.copy2(file,resources/'models/pix2text-mfr-1.5'/file.name)
-poppler=Path(os.environ['OCR_POPPLER_DIR']).expanduser().resolve()
 shutil.copytree(poppler,resources/'poppler',symlinks=True)
 paths=sorted((root/'ocr_app').glob('*.py'))+[root/'scripts/runtime'/name for name in ['automatic_wraps.py','detect_regions.py','quality_reviews.py','formula_crop.py','formula_onnx.py']]+[root/'scripts/native'/name for name in ['vision_sample.swift','vision_document.swift']]
 recipe={'version':'1.0.0','source_sha256':{str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths},'requirements':(root/'requirements-app.txt').read_text(),'render_dpi':300,'formula_dpi':400}

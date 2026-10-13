@@ -22,3 +22,16 @@ __pycache__/
 /tmp/
 /:memory:.ses
 .DS_Store
+
+# Local handoff notes and source-specific experiments
+/HANDOFF.md
+/ADsP_AI.md
+/scripts/experiments/
+/scripts/review/
+/scripts/fixtures/
+
+# Local credentials and input documents
+.env
+.env.*
+!.env.example
+/*.pdf
