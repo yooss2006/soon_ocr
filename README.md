@@ -1,6 +1,7 @@
 # OCR 도우미
 
 스캔 PDF를 검색 가능한 PDF로 만드는 Mac 앱입니다. OCR 결과를 AI용 텍스트와 이미지로 저장할 수 있습니다.
+일반 PDF와 OCR 결과 PDF에서 선택한 페이지를 삭제하고 새 파일로 저장할 수 있습니다.
 앱 사용 방법은 [사용법.txt](사용법.txt), 작업 상태와 이전 검증 기록은 [HANDOFF.md](HANDOFF.md)를 확인하세요.
 
 ## 폴더 구조
@@ -58,6 +59,13 @@ OCR/
 
 ```sh
 .venv-app/bin/python ocr_app/worker.py --help
+```
+
+PDF 편집 검증 (페이지 순서, OCR 텍스트, 화면, 회전, 원본 보호):
+
+```sh
+swiftc -module-cache-path /private/tmp/ocr-swift-cache -swift-version 5 -parse-as-library -framework SwiftUI -framework AppKit -framework PDFKit mac_app/PDFEditor.swift tests/check_pdf_editor.swift -o build/check_pdf_editor
+build/check_pdf_editor artifacts/tests/pdf-editor
 ```
 
 앱 제작:

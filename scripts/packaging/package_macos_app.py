@@ -6,7 +6,7 @@ build=root/'build';build.mkdir(exist_ok=True)
 python=root/'.venv-app/bin/python'
 def run(args,**kwargs):subprocess.run([str(x) for x in args],check=True,**kwargs)
 cache='/private/tmp/ocr-swift-cache'
-run(['swiftc','-module-cache-path',cache,'-target','arm64-apple-macosx26.0','-swift-version','5','-O','-parse-as-library','-framework','SwiftUI','-framework','AppKit',root/'mac_app/OCRApp.swift','-o',build/'OCRHelper'])
+run(['swiftc','-module-cache-path',cache,'-target','arm64-apple-macosx26.0','-swift-version','5','-O','-parse-as-library','-framework','SwiftUI','-framework','AppKit','-framework','PDFKit',root/'mac_app/OCRApp.swift',root/'mac_app/PDFEditor.swift','-o',build/'OCRHelper'])
 (build/'native').mkdir(exist_ok=True)
 run(['swiftc','-module-cache-path',cache,root/'scripts/native/vision_sample.swift','-o',build/'native/vision_text'])
 run(['swiftc','-parse-as-library','-module-cache-path',cache,root/'scripts/native/vision_document.swift','-o',build/'native/vision_document'])

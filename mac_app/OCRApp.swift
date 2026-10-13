@@ -397,6 +397,7 @@ private struct OCRCardStyle: GroupBoxStyle {
 
 struct ContentView: View {
     @ObservedObject var model: OCRModel
+    @StateObject private var editor = PDFEditorModel()
     var body: some View {
         HStack(alignment: .top, spacing: OCRDesign.sectionGap) {
             ScrollView {
@@ -420,6 +421,27 @@ struct ContentView: View {
                             .font(OCRDesign.bodyMedium).lineLimit(2)
                         if model.pageCount > 0 {
                             Text("전체 \(model.pageCount)쪽").font(OCRDesign.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                GroupBox {
+                    VStack(alignment: .leading, spacing: OCRDesign.itemGap) {
+                        Text("PDF 페이지 편집").font(OCRDesign.headline)
+                        Text("일반 PDF와 OCR 결과에서 필요 없는 페이지를 삭제하고 새 PDF로 저장합니다.")
+                            .font(OCRDesign.callout).foregroundStyle(.secondary)
+                        HStack(spacing: OCRDesign.itemGap) {
+                            Button("PDF 선택 후 편집…") {
+                                if editor.chooseInput() { editor.isPresented = true }
+                            }
+                            if let source = model.source {
+                                Button("첨부한 PDF 편집") { editPDF(source) }
+                            }
+                            if let result = model.result {
+                                Button("OCR 결과 편집") { editPDF(result) }
+                            }
+                        }.disabled(model.running)
+                        if !editor.isPresented && !editor.errorMessage.isEmpty {
+                            Text(editor.errorMessage).foregroundStyle(.red)
                         }
                     }
                 }
@@ -475,6 +497,12 @@ struct ContentView: View {
         .preferredColorScheme(.light)
         .onAppear { AppDelegate.model = model }
         .onOpenURL { model.select($0) }
+        .sheet(isPresented: $editor.isPresented) { PDFEditorView(model: editor) }
+    }
+
+    private func editPDF(_ url: URL) {
+        do { try editor.load(url); editor.isPresented = true }
+        catch { editor.errorMessage = error.localizedDescription }
     }
 
     private var workflowCard: some View {
